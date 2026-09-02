@@ -2,6 +2,9 @@
 
 Every turn of an expensive-model session re-sends its whole history. `/squeeze` shrinks it to a budget you pick.
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![DSH Plugin](https://img.shields.io/badge/DSH-Plugin-8B5CF6.svg)](https://github.com/topics/dsh-plugin)
+
 A slash command for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) that compresses a session's context on demand — with the summaries written by a cheap flash-tier route instead of the model you're paying for.
 
 ## Before / after
