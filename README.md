@@ -134,4 +134,4 @@ node smoke.mjs   # 59 behavior checks against real Session objects, no LLM neede
 
 ## License
 
-Pending — private, unreleased.
+[MIT](LICENSE)
