@@ -2,6 +2,7 @@
 
 Every turn of an expensive-model session re-sends its whole history. `/squeeze` shrinks it to a budget you pick.
 
+[![npm version](https://img.shields.io/npm/v/dsh-squeeze-command.svg)](https://www.npmjs.com/package/dsh-squeeze-command)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![DSH Plugin](https://img.shields.io/badge/DSH-Plugin-8B5CF6.svg)](https://github.com/topics/dsh-plugin)
 
