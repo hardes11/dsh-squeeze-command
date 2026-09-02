@@ -1,7 +1,6 @@
 {
   "name": "dsh-squeeze-command",
   "version": "0.1.0",
-  "private": true,
   "description": "Manual budget-targeted context compression for DeepSeek Harness: the conversation model picks ranges, a cheap flash-tier route writes the checkpoint summaries.",
   "keywords": [
     "deepseek-harness",
