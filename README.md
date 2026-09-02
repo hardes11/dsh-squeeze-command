@@ -72,7 +72,7 @@ ln -s ../../../commands/dsh-squeeze-command ~/.dsh/profiles/web/node_modules/dsh
 | `contextBudgetTokens` | — (required for bare `/squeeze`) | target for bare invocation |
 | `summarizerProvider` | — (required) | provider key for the summary route |
 | `summarizerModel` | — (required) | model id for the summary route |
-| `summarizerReasoningEffort` | `low` | effort pin for summarizer calls; `null` sends unpinned |
+| `summarizerReasoningEffort` | `null` | effort pin for summarizer calls; pin e.g. `low` only if the route's effort map declares it |
 | `summarizerConcurrency` | `5` | max parallel summarizer calls |
 | `maxSpanInputTokens` | `30000` | per-span summarizer input cap |
 | `maxSummaryTokens` | `2048` | per-summary output cap |
@@ -90,19 +90,22 @@ your DSH settings works.
    context and calls the lazily-visible `context_squeeze` tool once with
    position ranges (it never writes summaries itself).
 2. Spans are validated: edges snap outward to tool-pairing balanced cuts,
-   spans that would overlap an already-planned neighbor are trimmed around
-   it (only fully consumed spans drop), and tiny spans are rejected.
-3. Each span opens its compaction bracket (the durable lock), then spans are
-   summarized in parallel (bounded by `summarizerConcurrency`) on the
-   configured cheap route. Truncated summaries fail closed — a checkpoint
-   that hit the token cap is never accepted.
-4. Checkpoints commit sequentially through the compaction marker protocol
-   (`compaction/start` -> `compaction/summary` -> surface `replace` ->
-   `compaction/end`), with every opened bracket closed on every path.
-   Originals always remain in the session log.
+   spans that would overlap an already-planned neighbor are trimmed to the
+   free sub-interval (fully covered or split spans drop with a message), and
+   tiny spans are rejected.
+3. Spans are summarized in parallel (bounded by `summarizerConcurrency`) on
+   the configured cheap route, holding NO lock across the summarizer awaits.
+   Truncated summaries fail closed — a checkpoint that hit the token cap is
+   never accepted.
+4. Checkpoints commit sequentially, each through its own tight synchronous
+   bracket (`compaction/start` -> `compaction/summary` -> surface `replace`
+   -> `compaction/end`), honoring the compaction capability's single-lock
+   contract; no code path can leave a bracket dangling. Originals always
+   remain in the session log.
 
 ## Development
 
 ```
-node smoke.mjs   # 52 behavior checks against real Session objects, no LLM needed
+npm ci           # .npmrc pins legacy-peer-deps for the rc-tagged peer closure
+node smoke.mjs   # 59 behavior checks against real Session objects, no LLM needed
 ```
