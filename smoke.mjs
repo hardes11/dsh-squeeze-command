@@ -167,7 +167,7 @@ async function runCommand(ctx, session, rawInput, opts = {}) {
     { start: 7, end: 9 },
     { start: 4, end: 8 },
   ])
-  check('Q3 one applied, intruder consumed', res.result.includes('Squeezed 1 span(s)') && /consumed by a neighboring span/.test(res.result), res.result)
+  check('Q3 tail-straddler trims instead of dropping', res.result.includes('Squeezed 2 span(s)') && /trimmed to \d+-\d+ to fit neighboring spans/.test(res.result), res.result)
 }
 
 // ── Q4: min-span floor ────────────────────────────────────────────────────
@@ -274,8 +274,7 @@ async function runCommand(ctx, session, rawInput, opts = {}) {
   check('Q14 truncation fails closed', /truncated at the .*-token cap/.test(res.result), res.result)
   const starts = session.events.filter((e) => e?.type === 'compaction/start').length
   const ends = session.events.filter((e) => e?.type === 'compaction/end').length
-  check('Q14 opened compaction closed with error', starts === 1 && ends === 1
-    && typeof session.events.find((e) => e?.type === 'compaction/end')?.data?.error === 'string', '')
+  check('Q14 no bracket opened for failed summary', starts === 0 && ends === 0, `${starts}/${ends}`)
   check('Q14 nothing applied', session.surface.nodes.length === 9, String(session.surface.nodes.length))
 }
 
@@ -308,7 +307,7 @@ async function runCommand(ctx, session, rawInput, opts = {}) {
   const res = await runTool(ctx, session, [{ start: 5, end: 6 }])
   check('Q17 shrink guard rejects', /not smaller than the shadowed content/.test(res.result), res.result)
   const ends = session.events.filter((e) => e?.type === 'compaction/end')
-  check('Q17 guard path closed with string error', ends.length === 1 && typeof ends[0].data.error === 'string', JSON.stringify(ends[0]?.data?.error))
+  check('Q17 guard path opens no bracket', ends.length === 0, JSON.stringify(ends.length))
 }
 
 // ── Q18: two successful disjoint spans, highest-first ──────────────────────
@@ -395,8 +394,52 @@ async function runCommand(ctx, session, rawInput, opts = {}) {
     { start: 2, end: 6 },
   ])
   check('Q22 both spans applied after trim', res.result.includes('Squeezed 2 span(s)'), res.result)
-  check('Q22 trim noted', /trimmed to fit neighboring spans/.test(res.result), res.result)
+  check('Q22 trim noted', /trimmed to \d+-\d+ to fit neighboring spans/.test(res.result), res.result)
   check('Q22 surface shrank by 3', session.surface.nodes.length === 9, String(session.surface.nodes.length))
+}
+
+// ── Q23: inside-intruder drops with split message, no bracket ─────────────
+{
+  const { ctx } = makeCtx(FULL_CONFIG)
+  const session = toolConversation(4)
+  // Sorted highest-first: {5,6} = a2..r2 (balanced, planned idx 4..5).
+  // {4,7} = u2..r2 region intersects it: the planned span sits strictly
+  // inside -> split geometry -> honest drop, no events.
+  const res = await runTool(ctx, session, [
+    { start: 5, end: 6 },
+    { start: 4, end: 7 },
+  ])
+  check('Q23 split geometry drops honestly', res.result.includes('Squeezed 1 span(s)') && /split by a neighboring span/.test(res.result), res.result)
+  const starts = session.events.filter((e) => e?.type === 'compaction/start').length
+  const ends = session.events.filter((e) => e?.type === 'compaction/end').length
+  check('Q23 exactly one bracket, closed', starts === 1 && ends === 1, `${starts}/${ends}`)
+}
+
+// ── Q24: config validation fails loud at load ─────────────────────────────
+{
+  let threw = null
+  try {
+    makeCtx({ ...FULL_CONFIG, contextBudgetTokens: 0 })
+  } catch (e) { threw = e }
+  check('Q24 zero budget throws at apply', threw !== null && /contextBudgetTokens/.test(threw.message), threw?.message ?? 'no throw')
+  threw = null
+  try {
+    makeCtx({ ...FULL_CONFIG, summarizerConcurrency: -1 })
+  } catch (e) { threw = e }
+  check('Q24 negative concurrency throws at apply', threw !== null && /summarizerConcurrency/.test(threw.message), threw?.message ?? 'no throw')
+}
+
+// ── Q25: throwing summarizer never strands brackets ───────────────────────
+{
+  const llm = { stream: async function* () { throw new Error('route exploded') } }
+  const { ctx } = makeCtx(FULL_CONFIG, llm)
+  const session = toolConversation(3)
+  const res = await runTool(ctx, session, [{ start: 5, end: 6 }])
+  check('Q25 throwing summarizer reported', /summarizer (failed|crashed)/.test(res.result), res.result)
+  const starts = session.events.filter((e) => e?.type === 'compaction/start').length
+  const ends = session.events.filter((e) => e?.type === 'compaction/end').length
+  check('Q25 no bracket stranded', starts === 0 && ends === 0, `${starts}/${ends}`)
+  check('Q25 nothing applied', session.surface.nodes.length === 9, String(session.surface.nodes.length))
 }
 
 console.log(`\n${passed} passed, ${failed} failed`)
