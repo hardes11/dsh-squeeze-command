@@ -32,7 +32,8 @@ Surface: 44 messages, ~45,780 tokens — under budget (100000 by 54,220).
 ## What it does
 
 - **Cuts what you resend.** One command on an idle session drops it under budget — and every summary is written by a cheap route you configure, not the frontier model running the conversation.
-- **Nothing is thrown away.** Each squeeze leaves a checkpoint on the surface; the original messages stay in the append-only session log.
+- **Nothing is thrown away.** Each squeeze leaves a checkpoint on the surface; the original messages stay in the append-only session log — and `/squeeze map` lets you browse them.
+- **Resists post-squeeze confusion.** Every checkpoint summary ends with an explicit `Span end-state:` line (COMPLETED/PENDING per task), and the squeeze result carries a trusted open-work digest computed from the uncompressed tail — so the model doesn't re-enter work a summary describes without its completion status.
 - **Fires only when you ask.** No thresholds, no auto-triggers, and it refuses to run while an agent turn is in flight.
 - **No agents to dispatch.** The summary delegation is built in — you run one command, everything else happens inside it.
 
@@ -40,7 +41,30 @@ Surface: 44 messages, ~45,780 tokens — under budget (100000 by 54,220).
 /squeeze           compress toward contextBudgetTokens (preset config)
 /squeeze 60k       one-off token target (also plain: /squeeze 60000)
 /squeeze status    read-only: message count, token estimate, budget, summarizer
+/squeeze map       read-only: interactive HTML map of every checkpoint
 /squeeze help      full usage guide
+```
+
+## `/squeeze map` — see what compression did
+
+`/squeeze map` replays the session log into a self-contained HTML page (written to your temp dir and opened in your browser; no LLM calls, nothing modified). On a squeezed session it shows:
+
+- **One timeline lane per `/squeeze` invocation** (reconstructed from commit timestamps) — every checkpoint bar is clickable.
+- **Event-density histogram** — which stretches of history are still live on the surface vs shadowed inside checkpoints.
+- **Checkpoint table** with per-checkpoint survival ratio (summary tokens vs shadowed tokens).
+- **Before / after** — the original messages a checkpoint replaced, side by side with the summary that stands in for them.
+- **Surface time machine** — buttons for `original`, `after squeeze N` (one per invocation), and `current`: exactly what the model's working set looked like at each point in time.
+
+It also works on never-squeezed sessions (all-live histogram, full transcript — a useful preview of what a squeeze would chew on).
+
+![squeeze map demo](docs/squeeze-explorer-demo.png)
+
+*(Synthetic demo data — regenerate with `node tools/squeeze-explorer.mjs --demo`.)*
+
+The same view is available as a standalone script for any session log, without mounting the plugin:
+
+```sh
+node tools/squeeze-explorer.mjs ~/.dsh/sessions/<workspace>/session-<id>/session.jsonl.zstd
 ```
 
 ## Installation
@@ -100,7 +124,8 @@ The summarizer route should be a cheap, fast model — a flash-tier model is the
 
 ## Compatibility
 
-- **DSH:** peers on `@deepseek-ai/dsh-compaction` and `@deepseek-ai/dsh-llm` at `0.1.0-rc.6` (rc line — no stability promise).
+- **DSH:** peerDependencies are wildcards — the host provides `@deepseek-ai/dsh-compaction` and `@deepseek-ai/dsh-llm`. Works across API generations (0.1.1's eager `session.events` array and 0.1.2's `snapshotEvents()` are both handled).
+- **Standard DSH Bundle:** `cordis.patch.yml` (insert-only, own row) + a `dsh` manifest block with `compatibility.dshReleases` (0.1.1 and 0.1.2-rc.1 declared — both verified by live runs).
 - **Node:** >= 22 (`engines`).
 - **Summarizer route:** provider-neutral — any provider registered in DSH settings.
 
@@ -119,7 +144,7 @@ Long conversations with expensive models drown in input-token costs: every turn 
 
 ## How it works
 
-`/squeeze` asks the model to mark compressible ranges (one tool call). A cheap route writes the summaries in parallel. Checkpoints commit sequentially, and the originals stay in the session log.
+`/squeeze` asks the model to mark compressible ranges (one tool call). A cheap route writes the summaries in parallel. Checkpoints commit sequentially, and the originals stay in the session log. After a successful squeeze, one extra cheap-route call digests the uncompressed tail into an open-work restatement appended to the tool result — historical summaries never outrank it.
 
 ## Implementation notes
 
