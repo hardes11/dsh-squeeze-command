@@ -1,6 +1,6 @@
 {
   "name": "dsh-squeeze-command",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Manual budget-targeted context compression for DeepSeek Harness: the conversation model picks ranges, a cheap flash-tier route writes the checkpoint summaries.",
   "keywords": [
     "deepseek-harness",
@@ -11,6 +11,24 @@
   ],
   "type": "module",
   "main": "lib/index.js",
+  "files": [
+    "lib",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "compatibility": {
+      "dsh": ">=0.1.1 <0.2.0",
+      "dshReleases": {
+        "0.1.1": "compatible",
+        "0.1.2-rc.1": "compatible"
+      }
+    }
+  },
   "engines": {
     "node": ">=22"
   },

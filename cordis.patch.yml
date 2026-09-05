@@ -1,0 +1,6 @@
+# Standard DSH Bundle patch for dsh-squeeze-command: inserts only this
+# plugin's own row into the composed tree (DSH-Store contract — no official
+# rows are modified, replaced, or shadowed).
+- insert:
+    - id: dsh-squeeze-command
+      name: 'dsh-squeeze-command'
